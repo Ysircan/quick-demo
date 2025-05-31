@@ -1,0 +1,18 @@
+.gradientButton {
+  background: linear-gradient(90deg, #667eea, #764ba2);
+  transition: background-position 0.5s;
+  background-size: 200% 200%;
+  background-position: left center;
+}
+.gradientButton:hover {
+  background-position: right center;
+}
+/* Login.module.css */
+.gradientButton {
+  background-image: linear-gradient(to right, #facc15, #fbbf24, #fcd34d);
+  transition: background 0.3s ease;
+}
+
+.gradientButton:hover {
+  background-image: linear-gradient(to right, #fbbf24, #facc15, #fde68a);
+}
