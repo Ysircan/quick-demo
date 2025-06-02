@@ -1,11 +1,19 @@
 // src/lib/prisma.ts
 import { PrismaClient } from '@prisma/client';
 
-// 避免开发环境下创建多个 PrismaClient 实例
-const globalForPrisma = global as unknown as { prisma: PrismaClient };
+const isDev = process.env.NODE_ENV !== 'production';
 
-const prisma = globalForPrisma.prisma || new PrismaClient();
+// 👇 这里允许开发环境下热更新时保留 prisma 实例，防止出现 "too many connections"
+const globalForPrisma = globalThis as unknown as {
+  prisma?: PrismaClient;
+};
 
-if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
+// 👇 初始化 PrismaClient，可添加日志选项
+export const prisma =
+  globalForPrisma.prisma ??
+  new PrismaClient({
+    log: isDev ? ['query', 'error', 'warn'] : ['error'], // 开发模式显示查询日志
+  });
 
-export default prisma;
+// 👇 仅在开发环境保留单例，避免多次创建实例
+if (isDev) globalForPrisma.prisma = prisma;

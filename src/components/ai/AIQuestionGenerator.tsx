@@ -97,23 +97,57 @@ export default function AIQuestionGenerator() {
     }
   };
 
-  const handleSave = () => {
-    const selected = questions.filter((q) => q.selected);
-    if (!selected.length) return alert('请至少选择一道题目进行保存');
+const handleSave = async () => {
+  const selected = questions.filter((q) => q.selected);
+  if (!selected.length) return alert("请至少选择一道题目进行保存");
 
-    const newTask = {
-      id: Date.now().toString(),  // ✅ 自动生成唯一 id
-      topic: title,
-      style,
-      questions: selected,
-      structure,
-      timestamp: Date.now(),
-    };
+  // ✅ 转换成后端需要的格式
+  const formattedQuestions = selected.map((q) => ({
+    type: q.options && q.options.length ? "choice" : "short", // 根据有无选项判断题型
+    content: q.question, // 原字段 question → 映射为 content
+    options: q.options?.length ? q.options : undefined, // 仅当有选项时才传
+    answer: q.answer,
+  }));
 
-    const existing = JSON.parse(localStorage.getItem('savedTasks') || '[]');
-    localStorage.setItem('savedTasks', JSON.stringify([...existing, newTask]));
-    alert('✅ 课程已保存！');
-  };
+  const token = localStorage.getItem("token");
+  if (!token) return alert("请先登录");
+
+  try {
+    const res = await fetch("/api/auth/course", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        title,
+        description: topic || "AI 自动出题课程",
+        coverImage: "/cover/default.jpg",
+        tags: [style || "AI课程"],
+        type: "word",
+        difficulty: "medium",
+        durationDays: 7,
+        price: 0,
+        structure,
+        questions: formattedQuestions, // ✅ 正确结构
+      }),
+    });
+
+    if (res.ok) {
+      alert("✅ 已保存至课程列表！");
+    } else {
+      const errorText = await res.text();
+      console.error("❌ 后端响应错误：", errorText);
+      alert("❌ 保存失败，请检查后端接口或数据结构！");
+    }
+  } catch (err) {
+    console.error("❌ 网络或系统错误：", err);
+    alert("❌ 网络错误或服务器异常！");
+  }
+};
+
+
+
 
   return (
     <div className="flex flex-col md:flex-row bg-white text-black p-6 rounded shadow max-w-6xl mx-auto space-y-6 md:space-y-0 md:space-x-6">

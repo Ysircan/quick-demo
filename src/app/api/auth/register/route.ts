@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import prisma from "@/lib/prisma";
+import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
-import * as jwt from "jsonwebtoken";
+import jwt from "jsonwebtoken";
 
 const JWT_SECRET = process.env.JWT_SECRET || "your_jwt_secret";
 
@@ -46,7 +46,15 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: "角色参数无效" }, { status: 400 });
     }
 
-    const token = jwt.sign({ userId: user.id, role: user.role }, JWT_SECRET, { expiresIn: "7d" });
+    const token = jwt.sign(
+      {
+        id: user.id,             // ✅ 必须是 `id`
+        name: user.name,
+        role: user.role,
+      },
+      JWT_SECRET,
+      { expiresIn: "7d" }
+    );
 
     return NextResponse.json({ token, role: user.role }, { status: 201 });
   } catch (error) {

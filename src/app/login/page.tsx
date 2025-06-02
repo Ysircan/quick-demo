@@ -1,9 +1,8 @@
-"use client";
+'use client';
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import QuickLayout from "@/components/layout";
-import Login from "@/components/login";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -45,14 +44,48 @@ export default function LoginPage() {
 
   return (
     <QuickLayout>
-      <Login
-        email={email}
-        password={password}
-        onEmailChange={setEmail}
-        onPasswordChange={setPassword}
-        onSubmit={handleSubmit}
-        error={error}
-      />
+      <div className="fixed top-0 left-0 w-screen h-screen overflow-hidden flex items-center justify-center text-white">
+        <form
+          onSubmit={handleSubmit}
+          className="w-full max-w-sm space-y-4 bg-transparent"
+        >
+          <h2 className="text-2xl font-bold text-center">登录</h2>
+
+          <input
+            type="email"
+            placeholder="邮箱"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className="w-full bg-white/10 text-white border-none p-2 rounded placeholder-gray-400"
+            required
+          />
+
+          <input
+            type="password"
+            placeholder="密码"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className="w-full bg-white/10 text-white border-none p-2 rounded placeholder-gray-400"
+            required
+          />
+
+          {error && <p className="text-red-600 text-sm">{error}</p>}
+
+          <button
+            type="submit"
+            className="w-full bg-yellow-400 text-black py-2 rounded"
+          >
+            登录
+          </button>
+
+          <p className="text-center text-sm">
+            还没有账号？{" "}
+            <a href="/register" className="text-blue-400 underline">
+              去注册
+            </a>
+          </p>
+        </form>
+      </div>
     </QuickLayout>
   );
 }

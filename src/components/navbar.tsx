@@ -4,15 +4,15 @@ import Link from "next/link";
 
 export default function NavBar() {
   const navItems = [
-    { name: "主页", href: "/teacher/demo" },
+    { name: "主页", href: "/" },
     { name: "教师端", href: "/teacher/dashboard" },
-    { name: "学生任务", href: "/student/task" },
+    { name: "商城", href: "/student/store" },
     { name: "登录", href: "/login" },
-    { name: "关于", href: "/about" }, // 可留空或写跳转
+    { name: "关于", href: "/about" },
   ];
 
   return (
-    <nav className="fixed top-6 left-1/2 transform -translate-x-1/2 z-20 flex gap-8 text-sm font-medium text-white">
+    <nav className="fixed top-4 left-1/2 -translate-x-1/2 z-50 flex gap-8 text-sm font-medium text-white">
       {navItems.map((item) => (
         <Link
           key={item.href}

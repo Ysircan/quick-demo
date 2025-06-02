@@ -1,64 +1,378 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider = "prisma-client-js"
-    output   = "../node_modules/.prisma/client" // ✅ 正确写法
+  output   = "../node_modules/.prisma/client"
 }
 
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
+
 enum Role {
   STUDENT
   TEACHER
 }
 
-model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  name      String   // 👈 加这行
-  password  String
-  role      Role
-  createdAt DateTime @default(now())
+enum DropSource {
+  TASK
+  STREAK
+  ONLINE_TIME
+  EVENT
+  MANUAL
+}
 
-   courses   Course[]  // ← 添加这一行！
-  studentProfile StudentProfile? @relation("UserToStudent")
-  teacherProfile TeacherProfile? @relation("UserToTeacher")
+enum TaskStatus {
+  PENDING
+  CORRECT
+  WRONG
+}
+
+enum CardRarity {
+  COMMON
+  RARE
+  EPIC
+  LEGENDARY
+}
+
+enum MediaType {
+  IMAGE
+  VIDEO
+  AUDIO
+  GIF
+}
+enum CourseType {
+  MAIN
+  PRACTICE
+  EXAM
+}
+enum DifficultyLevel {
+  EASY
+  MEDIUM
+  HARD
+}
+
+
+model User {
+  id                   String              @id @default(cuid())
+  email                String              @unique
+  name                 String
+  password             String
+  role                 Role
+  avatarUrl            String?             @default("https://yourcdn.com/default-avatar.png")
+  createdAt            DateTime            @default(now())
+
+  studentProfile       StudentProfile?     @relation("UserToStudent")
+  teacherProfile       TeacherProfile?     @relation("UserToTeacher")
+
+  courses              Course[]            @relation("CourseTeacher")
+  drops                DailyDropLog[]
+  questionFeedbacks    QuestionFeedback[]
+  aiResponses          QuestionAIResponse[]
+  enrolledCourses      EnrolledCourse[]
+  sessionLogs          StudentSessionLog[]
+  cardCollections      CardCollection[]
+  cardSetProgresses    CardSetProgress[]
+  cardSetsCreated      CardSet[]           @relation("CreatedCardSets")
+  cardsCreated         Card[]              @relation("UserToCard")  // ← 新增
 }
 
 model StudentProfile {
-  id        String   @id @default(cuid())
-  user      User     @relation("UserToStudent", fields: [userId], references: [id])
-  userId    String   @unique
-  points    Int      @default(0)
+  id      String   @id @default(cuid())
+  userId  String   @unique
+  points  Int      @default(0)
+
+  user    User     @relation("UserToStudent", fields: [userId], references: [id])
 }
 
 model TeacherProfile {
-  id        String   @id @default(cuid())
-  user      User     @relation("UserToTeacher", fields: [userId], references: [id])
-  userId    String   @unique
+  id      String   @id @default(cuid())
+  userId  String   @unique
+
+  user    User     @relation("UserToTeacher", fields: [userId], references: [id])
 }
+
 model Course {
+  id                   String       @id @default(cuid())
+  title                String
+  description          String
+  coverImage           String
+  tags                 String[]
+  type                 CourseType
+  category             String?
+  difficulty           DifficultyLevel
+  durationDays         Int
+
+  // 🟡 ↓ 新增价格相关字段 ↓
+  price                Int          @default(0)
+  originalPrice        Int?
+  discountPrice        Int?
+  discountStart        DateTime?
+  discountEnd          DateTime?
+  // 🟡 ↑ 新增价格相关字段 ↑
+  rating               Float?
+  enrollment           Int          @default(0)
+  isPublished          Boolean      @default(false)
+  allowPreview         Boolean      @default(false)
+  previewDescription   String?
+  videoUrl             String?
+  isPrimary            Boolean      @default(true)
+  parentId             String?
+  teacherId            String
+  createdAt            DateTime     @default(now())
+  updatedAt            DateTime     @updatedAt
+
+  parentCourse         Course?      @relation("CourseToParent", fields: [parentId], references: [id])
+  childCourses         Course[]     @relation("CourseToParent")
+  teacher              User         @relation("CourseTeacher", fields: [teacherId], references: [id])
+
+  questions            Question[]
+  enrollments          EnrolledCourse[]
+  dropLogs             DailyDropLog[]
+  sessionLogs          StudentSessionLog[]
+  courseCardSets       CourseCardSet[]
+  courseCards          Card[]       @relation("CourseToCard") // ← 反向查属于本课程的卡
+}
+
+model CourseCardSet {
+  id         String   @id @default(cuid())
+  courseId   String
+  cardSetId  String
+  note       String?
+
+  course     Course   @relation(fields: [courseId], references: [id])
+  cardSet    CardSet  @relation(fields: [cardSetId], references: [id])
+
+  @@unique([courseId, cardSetId])
+}
+
+model Question {
+  id          String   @id @default(cuid())
+  courseId    String
+  content     String
+  type        String
+  options     String[]
+  answer      String
+  explanation String?
+  difficulty DifficultyLevel?   
+  score       Int      @default(10)
+  mediaUrl    String?
+  mediaType   String?
+  allowRepeat    Boolean  @default(true)  // 永久重复控制
+  cooldownDays   Int?     // 冷却天数，单位：天
+  groupId     String?
+  releaseDay  Int?
+  isActive    Boolean  @default(true)
+  authorId    String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  course      Course   @relation(fields: [courseId], references: [id])
+  feedbacks   QuestionFeedback[]
+  aiResponses QuestionAIResponse[]
+  drops       QuestionDropConfig[]
+  dropLogs    DailyDropLog[]
+  taskRecords EnrolledCourseTask[]
+}
+
+model QuestionDropConfig {
+  id         String   @id @default(cuid())
+  questionId String
+  cardId     String
+  dropRate   Float    @default(0.2)
+  dropLimit  Boolean  @default(false)
+  validUntil DateTime?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  question   Question @relation(fields: [questionId], references: [id])
+  card       Card     @relation(fields: [cardId], references: [id])
+}
+
+model QuestionFeedback {
+  id         String   @id @default(cuid())
+  studentId  String
+  questionId String
+  courseId   String
+  answer     String
+  isCorrect  Boolean
+  resolved   Boolean  @default(false)
+  aiUsed     Boolean?
+  reviewed   Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  student    User     @relation(fields: [studentId], references: [id])
+  question   Question @relation(fields: [questionId], references: [id])
+}
+
+model QuestionAIResponse {
+  id         String   @id @default(cuid())
+  questionId String
+  studentId  String
+  input      String
+  aiOutput   String
+  usedAt     DateTime @default(now())
+  feedback   String?
+  rating     Int?
+  isHelpful  Boolean?
+  fromModel  String?
+  metadata   Json?
+
+  question   Question @relation(fields: [questionId], references: [id])
+  student    User     @relation(fields: [studentId], references: [id])
+}
+
+model EnrolledCourse {
+  id          String   @id @default(cuid())
+  studentId   String
+  courseId    String
+  enrolledAt  DateTime @default(now())
+  isCompleted Boolean  @default(false)
+  progress    Int      @default(0)
+  score       Int?
+  rank        Int?
+  certificate String?
+  notes       String?
+  source      String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  student     User     @relation(fields: [studentId], references: [id])
+  course      Course   @relation(fields: [courseId], references: [id])
+  tasks       EnrolledCourseTask[]
+
+  @@unique([studentId, courseId])
+}
+
+model EnrolledCourseTask {
+  id               String     @id @default(cuid())
+  enrolledCourseId String
+  questionId       String
+  status           TaskStatus @default(PENDING)
+  submittedAt      DateTime?
+  answer           String?
+  isCorrect        Boolean?
+  aiUsed           Boolean?
+  feedback         String?
+    // 🟡 新增：练习用字段
+  redoCount        Int        @default(0)
+  lastTriedAt      DateTime?
+  resolved         Boolean    @default(false)
+  reviewed         Boolean    @default(false)
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+
+  enrolledCourse   EnrolledCourse @relation(fields: [enrolledCourseId], references: [id])
+  question         Question       @relation(fields: [questionId], references: [id])
+
+  @@unique([enrolledCourseId, questionId])
+}
+
+model StudentSessionLog {
+  id         String   @id @default(cuid())
+  studentId  String
+  page       String
+  courseId   String?
+  startedAt  DateTime
+  endedAt    DateTime?
+  duration   Int?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  student    User     @relation(fields: [studentId], references: [id])
+  course     Course?  @relation(fields: [courseId], references: [id])
+}
+
+model DailyDropLog {
+  id         String   @id @default(cuid())
+  studentId  String
+  cardId     String
+  source     DropSource
+  courseId   String?
+  questionId String?
+  rewardTime DateTime @default(now())
+
+  student    User     @relation(fields: [studentId], references: [id])
+  card       Card     @relation(fields: [cardId], references: [id])
+  course     Course?  @relation(fields: [courseId], references: [id])
+  question   Question?@relation(fields: [questionId], references: [id])
+
+  @@index([studentId])
+  @@index([rewardTime])
+}
+
+model Card {
   id           String   @id @default(cuid())
-  title        String
-  description  String
-  coverImage   String
-  tags         String[]
-  type         String
-  difficulty   String
-  durationDays Int
-  price        Int
-  rating       Float?
-  enrollment   Int      @default(0)
-
-  teacherId    String
-  teacher      User     @relation(fields: [teacherId], references: [id])
-
+  name         String
+  description  String?
+  mediaUrl     String?
+  mediaType    MediaType?
+  rarity       CardRarity
+  buffEffect   String?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+
+  createdById  String?
+  createdBy    User?    @relation("UserToCard", fields: [createdById], references: [id]) // 老师创建的卡
+
+  courseId     String?
+  course       Course?  @relation("CourseToCard", fields: [courseId], references: [id]) // 绑定课程
+
+  drops        DailyDropLog[]
+  collections  CardCollection[]
+  dropConfigs  QuestionDropConfig[]
+  cardLinks    CardSetCard[]
+}
+
+model CardCollection {
+  id         String   @id @default(cuid())
+  studentId  String
+  cardId     String
+  acquiredAt DateTime @default(now())
+
+  card       Card     @relation(fields: [cardId], references: [id])
+  student    User     @relation(fields: [studentId], references: [id])
+
+  @@unique([studentId, cardId])
+}
+
+model CardSet {
+  id             String   @id @default(cuid())
+  name           String
+  description    String?
+  coverImage     String?
+  createdById    String?
+  isFromPlatform Boolean  @default(false)
+  createdAt      DateTime @default(now())
+
+  createdBy      User?    @relation("CreatedCardSets", fields: [createdById], references: [id])
+  cardLinks      CardSetCard[]
+  progresses     CardSetProgress[]
+  courseBindings CourseCardSet[]
+}
+
+model CardSetCard {
+  id        String   @id @default(cuid())
+  cardSetId String
+  cardId    String
+  order     Int?
+  note      String?
+
+  cardSet   CardSet  @relation(fields: [cardSetId], references: [id])
+  card      Card     @relation(fields: [cardId], references: [id])
+
+  @@unique([cardSetId, cardId])
+}
+
+model CardSetProgress {
+  id         String   @id @default(cuid())
+  studentId  String
+  cardSetId  String
+  collected  Int
+  total      Int
+  updatedAt  DateTime @updatedAt
+
+  student    User     @relation(fields: [studentId], references: [id])
+  cardSet    CardSet  @relation(fields: [cardSetId], references: [id])
+
+  @@unique([studentId, cardSetId])
 }
