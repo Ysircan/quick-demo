@@ -1,91 +1,83 @@
 'use client';
 
 import { useState } from "react";
+import { AuthAPI, LoginRequest } from "@/lib/api/auth";
 import { useRouter } from "next/navigation";
-import QuickLayout from "@/components/layout";
 
 export default function LoginPage() {
   const router = useRouter();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const [form, setForm] = useState<LoginRequest>({
+    email: "",
+    password: "",
+  });
   const [error, setError] = useState("");
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setForm({ ...form, [e.target.name]: e.target.value });
+  };
+
+  const handleSubmit = async () => {
     setError("");
+    const res = await fetch(AuthAPI.login, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(form),
+    });
 
-    try {
-      const res = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        setError(data.message || "登录失败，请重试");
-        return;
-      }
-
+    const data = await res.json();
+    if (!res.ok) {
+      setError(data.error || "登录失败");
+    } else {
       localStorage.setItem("token", data.token);
+      localStorage.setItem("user", JSON.stringify(data.user));
+      alert("登录成功！");
 
-      if (data.role === "TEACHER") {
+      if (data.user.role === "TEACHER") {
         router.push("/teacher/dashboard");
-      } else if (data.role === "STUDENT") {
-        router.push("/student/dashboard");
       } else {
-        setError("未知用户角色");
+        router.push("/student/dashboard");
       }
-    } catch {
-      setError("请求异常，请稍后再试");
     }
-  }
+  };
 
   return (
-    <QuickLayout>
-      <div className="fixed top-0 left-0 w-screen h-screen overflow-hidden flex items-center justify-center text-white">
-        <form
-          onSubmit={handleSubmit}
-          className="w-full max-w-sm space-y-4 bg-transparent"
-        >
-          <h2 className="text-2xl font-bold text-center">登录</h2>
+ <div className="max-w-md mx-auto p-6 mt-10 bg-white rounded shadow">
+  <h1 className="text-xl font-bold mb-4 text-gray-900">登录账号</h1>
 
-          <input
-            type="email"
-            placeholder="邮箱"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="w-full bg-white/10 text-white border-none p-2 rounded placeholder-gray-400"
-            required
-          />
+  <input
+    name="email"
+    type="email"
+    placeholder="邮箱"
+    onChange={handleChange}
+    className="input mb-2 w-full border border-gray-300 px-3 py-2 rounded text-black"
+  />
+  <input
+    name="password"
+    type="password"
+    placeholder="密码"
+    onChange={handleChange}
+    className="input mb-2 w-full border border-gray-300 px-3 py-2 rounded text-black"
+  />
 
-          <input
-            type="password"
-            placeholder="密码"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="w-full bg-white/10 text-white border-none p-2 rounded placeholder-gray-400"
-            required
-          />
+  <button
+    onClick={handleSubmit}
+    className="bg-blue-600 text-white py-2 px-4 rounded w-full"
+  >
+    登录
+  </button>
 
-          {error && <p className="text-red-600 text-sm">{error}</p>}
+  {error && <p className="text-red-500 mt-2">{error}</p>}
 
-          <button
-            type="submit"
-            className="w-full bg-yellow-400 text-black py-2 rounded"
-          >
-            登录
-          </button>
-
-          <p className="text-center text-sm">
-            还没有账号？{" "}
-            <a href="/register" className="text-blue-400 underline">
-              去注册
-            </a>
-          </p>
-        </form>
-      </div>
-    </QuickLayout>
+  {/* 👉 去注册 */}
+  <p className="mt-4 text-center text-sm text-gray-900">
+    还没有账号？
+    <button
+      onClick={() => router.push("/register")}
+      className="text-blue-600 underline ml-1"
+    >
+      去注册
+    </button>
+  </p>
+</div>
   );
 }
