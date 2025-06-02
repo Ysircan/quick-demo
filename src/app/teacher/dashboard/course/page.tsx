@@ -1,180 +1,152 @@
-'use client';
+"use client";
 
-import { useEffect, useState } from 'react';
-import Link from "next/link";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 
-interface Course {
-  id: string;
-  title: string;
-  createdAt: string;
-  questions?: any[];
-  isPublished?: boolean;
-}
+export default function CoursePage() {
+  const [courses, setCourses] = useState<any[]>([]);
+  const router = useRouter();
 
-export default function CourseListPage() {
-  const [drafts, setDrafts] = useState<Course[]>([]);
-  const [published, setPublished] = useState<Course[]>([]);
+  // 🔄 获取课程列表
+  const fetchCourses = async () => {
+    const token = localStorage.getItem("token");
+    if (!token) return;
+
+    try {
+      const res = await fetch("/api/auth/course", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      const text = await res.text();
+      const result = JSON.parse(text);
+
+      if (res.ok && result.success) {
+        setCourses(result.courses);
+      } else {
+        console.warn("⚠️ 获取课程失败:", result.error);
+      }
+    } catch (err) {
+      console.error("❌ 拉取课程失败:", err);
+    }
+  };
 
   useEffect(() => {
-    const fetchCourses = async () => {
-      const token = localStorage.getItem("token");
-      const res = await fetch("/api/auth/course/list", {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-      const data = await res.json();
-      if (data.success) {
-        setDrafts(data.drafts || []);
-        setPublished(data.published || []);
-      }
-    };
-
     fetchCourses();
   }, []);
 
+  // 🔧 通用课程更新函数
+  const updateCourse = async (course: any, updateData: any) => {
+    const token = localStorage.getItem("token");
+    const res = await fetch(`/api/auth/course/${course.id}`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        // 合并基础字段和更新字段
+        title: course.title,
+        description: course.description,
+        type: course.type,
+        difficulty: course.difficulty,
+        durationDays: course.durationDays,
+        ...updateData,
+      }),
+    });
+
+    if (res.ok) {
+      await fetchCourses();
+    } else {
+      alert("操作失败，请稍后重试。");
+    }
+  };
+
+  const handlePublish = (course: any) =>
+    updateCourse(course, { isPublished: true });
+
+  const handleUnpublish = (course: any) =>
+    updateCourse(course, { isPublished: false });
+
   const handleDelete = async (id: string) => {
-    if (!confirm("确定要删除这个草稿吗？")) return;
+    const confirmed = window.confirm("确认删除该课程吗？此操作不可撤销！");
+    if (!confirmed) return;
 
     const token = localStorage.getItem("token");
     const res = await fetch(`/api/auth/course/${id}`, {
       method: "DELETE",
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
+      headers: { Authorization: `Bearer ${token}` },
     });
 
     if (res.ok) {
-      setDrafts((prev) => prev.filter((c) => c.id !== id));
+      await fetchCourses();
+    } else {
+      alert("删除失败，请稍后重试");
     }
   };
 
-  const handleTogglePublish = async (id: string) => {
-    const token = localStorage.getItem("token");
-    const res = await fetch(`/api/auth/course/${id}`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
+  // ✅ 分类
+  const publishedCourses = courses.filter((c) => c.isPublished);
+  const draftCourses = courses.filter((c) => !c.isPublished);
 
-    if (res.ok) {
-      const updated = await res.json();
-      const course = updated.course;
+  // ✅ 渲染单个课程卡片
+  const renderCourseCard = (course: any) => (
+    <li
+      key={course.id}
+      style={{
+        border: "1px solid #ccc",
+        padding: "16px",
+        marginBottom: "12px",
+        borderRadius: "8px",
+        background: "#fdfdfd",
+      }}
+    >
+      <h2>{course.title}</h2>
+      <p style={{ color: "#666" }}>{course.description}</p>
+      <p>状态：{course.isPublished ? "✅ 已发布" : "📝 草稿"}</p>
 
-      if (course.isPublished) {
-        setDrafts((prev) => prev.filter((c) => c.id !== id));
-        setPublished((prev) => [course, ...prev]);
-      } else {
-        setPublished((prev) => prev.filter((c) => c.id !== id));
-        setDrafts((prev) => [course, ...prev]);
-      }
-    }
-  };
-
-  return (
-    <div className="p-10 text-white">
-      <h1 className="text-3xl font-bold mb-6">📚 我的课程</h1>
-
-      {/* ✅ 已发布课程 */}
-      <section className="mb-12">
-        <h2 className="text-2xl font-semibold mb-4">✅ 已发布</h2>
-        {published.length === 0 ? (
-          <p className="text-gray-400">暂无已发布课程。</p>
+      <div style={{ marginTop: "8px", display: "flex", gap: "12px" }}>
+        <button onClick={() => router.push(`/teacher/dashboard/course/${course.id}`)}>
+          ✏️ 编辑
+        </button>
+        {!course.isPublished ? (
+          <button onClick={() => handlePublish(course)}>📢 发布</button>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-            {published.map((course) => (
-              <CourseCard
-                key={course.id}
-                course={course}
-                onTogglePublish={handleTogglePublish}
-              />
-            ))}
-          </div>
+          <button onClick={() => handleUnpublish(course)}>⛔ 撤销发布</button>
         )}
-      </section>
-
-      {/* 📝 草稿课程 */}
-      <section>
-        <h2 className="text-2xl font-semibold mb-4">📝 草稿</h2>
-        {drafts.length === 0 ? (
-          <p className="text-gray-400">暂无草稿课程。</p>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-            {drafts.map((course) => (
-              <CourseCard
-                key={course.id}
-                course={course}
-                onDelete={handleDelete}
-                onTogglePublish={handleTogglePublish}
-              />
-            ))}
-          </div>
-        )}
-      </section>
-    </div>
-  );
-}
-
-// ✅ 卡片组件：支持删除、发布、撤销
-function CourseCard({
-  course,
-  onDelete,
-  onTogglePublish,
-}: {
-  course: Course;
-  onDelete?: (id: string) => void;
-  onTogglePublish?: (id: string) => void;
-}) {
-  return (
-    <div className="relative group">
-      <Link href={`/teacher/dashboard/course/${course.id}`}>
-        <div className="bg-white/5 p-6 rounded-xl border border-white/10 shadow hover:bg-white/10 transition cursor-pointer">
-          <h2 className="text-xl font-semibold text-blue-300 mb-2">{course.title}</h2>
-          <p className="text-sm text-gray-300">🧠 共 {course.questions?.length || 0} 题</p>
-          <p className="text-sm text-gray-400 mt-1">
-            🕒 创建于：{new Date(course.createdAt).toLocaleDateString()}
-          </p>
-        </div>
-      </Link>
-
-      <div className="absolute top-2 right-2 flex space-x-2 opacity-0 group-hover:opacity-100 transition">
-        {course.isPublished ? (
-          <button
-            className="px-2 py-1 text-xs bg-yellow-600 rounded hover:bg-yellow-500"
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              onTogglePublish?.(course.id);
-            }}
-          >
-            撤销发布
-          </button>
-        ) : (
-          <>
-            <button
-              className="px-2 py-1 text-xs bg-green-600 rounded hover:bg-green-500"
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                onTogglePublish?.(course.id);
-              }}
-            >
-              发布
-            </button>
-            <button
-              className="px-2 py-1 text-xs bg-red-600 rounded hover:bg-red-500"
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                onDelete?.(course.id);
-              }}
-            >
-              删除
-            </button>
-          </>
-        )}
+        <button onClick={() => handleDelete(course.id)}>🗑 删除</button>
       </div>
+    </li>
+  );
+
+  return (
+    <div style={{
+      padding: "24px",
+      maxWidth: "800px",
+      margin: "0 auto",
+      fontFamily: "system-ui, sans-serif",
+      fontSize: "16px",
+      lineHeight: "1.6",
+      color: "#222",
+    }}>
+      <h1>📚 我的课程</h1>
+
+      <h2 style={{ marginTop: "24px", fontSize: "20px" }}>📢 已发布课程</h2>
+      <ul style={{ listStyle: "none", padding: 0 }}>
+        {publishedCourses.length === 0 ? (
+          <p style={{ color: "gray" }}>暂无已发布课程</p>
+        ) : (
+          publishedCourses.map(renderCourseCard)
+        )}
+      </ul>
+
+      <h2 style={{ marginTop: "24px", fontSize: "20px" }}>📝 草稿课程</h2>
+      <ul style={{ listStyle: "none", padding: 0 }}>
+        {draftCourses.length === 0 ? (
+          <p style={{ color: "gray" }}>暂无草稿课程</p>
+        ) : (
+          draftCourses.map(renderCourseCard)
+        )}
+      </ul>
     </div>
   );
 }

@@ -70,7 +70,12 @@ export default function TeacherDashboardPage() {
         <h1 className="text-5xl font-extrabold mb-10 text-center drop-shadow tracking-wide">
           👩‍🏫 欢迎回来，{teacherName}！
         </h1>
-
+         <button
+    onClick={() => router.push("/teacher/dashboard/course/create")}
+    className="mb-8 bg-blue-600 hover:bg-blue-700 text-white text-sm px-5 py-2 rounded shadow"
+  >
+    ➕ 新建课程
+  </button>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
           <button
             onClick={() => router.push("/teacher/dashboard/course/create")}

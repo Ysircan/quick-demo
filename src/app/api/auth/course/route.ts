@@ -1,79 +1,118 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { PrismaClient } from "@prisma/client";
+import { CreateCourseRequest, CourseResponse } from "@/lib/api/course";
 import { getUserFromToken } from "@/lib/auth";
 
+const prisma = new PrismaClient();
+
+// ✅ 创建课程（POST）
 export async function POST(req: NextRequest) {
   try {
     const user = await getUserFromToken(req);
+    const body = (await req.json()) as CreateCourseRequest;
 
-    // ✅ 用户身份校验
-    if (!user || !user.id) {
-      return NextResponse.json({ error: "未授权，无法识别用户" }, { status: 401 });
+    console.log("📦 接收到课程创建请求:");
+    console.log("👤 当前用户:", user);
+    console.log("📝 请求体:", body);
+
+    if (!user || user.role !== "TEACHER") {
+      return NextResponse.json({ success: false, error: "无权限创建课程" }, { status: 401 });
     }
 
-    const body = await req.json();
     const {
       title,
       description,
-      coverImage,
-      tags,
+      tags = [],
       type,
+      category,
       difficulty,
       durationDays,
-      price,
-      structure,
-      questions,
+      coverImage,
+      price = 0,
+      originalPrice,
+      discountPrice,
+      discountStart,
+      discountEnd,
+      previewDescription,
+      videoUrl,
+      allowPreview = false,
     } = body;
 
-    // ✅ 打印 questions 结构，调试用
-    console.log("🟡 接收到 questions：", JSON.stringify(questions, null, 2));
-
-    // ✅ 防御性检查
-    if (!Array.isArray(questions) || questions.length === 0) {
-      return NextResponse.json({ error: "题目列表无效或为空" }, { status: 400 });
+    if (!title || !description || !type || !difficulty || !durationDays) {
+      return NextResponse.json({ success: false, error: "缺少必要字段" }, { status: 400 });
     }
 
-    // ✅ 课程创建 + 嵌套题目，同时逐题校验（防止格式问题）
     const course = await prisma.course.create({
       data: {
         title,
         description,
-        coverImage,
         tags,
         type,
+        category: category || undefined,
         difficulty,
         durationDays,
+        coverImage: coverImage || undefined,
         price,
-        structure,
+        originalPrice: originalPrice ?? undefined,
+        discountPrice: discountPrice ?? undefined,
+        discountStart: discountStart ? new Date(discountStart) : undefined,
+        discountEnd: discountEnd ? new Date(discountEnd) : undefined,
+        previewDescription: previewDescription || undefined,
+        videoUrl: videoUrl || undefined,
+        allowPreview,
         teacherId: user.id,
-        questions: {
-          create: questions.map((q: any, index: number) => {
-            if (!q.type || !q.content || !q.answer) {
-              throw new Error(`第 ${index + 1} 题缺少字段: ${JSON.stringify(q)}`);
-            }
-            return {
-              type: q.type,
-              content: q.content,
-              answer: q.answer,
-              options: q.options ?? undefined,
-            };
-          }),
-        },
-      },
-      include: {
-        questions: true,
       },
     });
 
-    return NextResponse.json({ success: true, course });
-  } catch (err: any) {
-    console.error("❌ 创建课程出错:", err);
-    return NextResponse.json(
-      {
-        error: "服务器内部错误",
-        detail: err.message || String(err),
-      },
-      { status: 500 }
-    );
+    const response: CourseResponse = {
+      id: course.id,
+      title: course.title,
+      description: course.description,
+      tags: course.tags,
+      type: course.type,
+      category: course.category ?? "",
+      difficulty: course.difficulty,
+      durationDays: course.durationDays,
+      coverImage: course.coverImage ?? "",
+      price: course.price,
+      originalPrice: course.originalPrice ?? 0,
+      discountPrice: course.discountPrice ?? 0,
+      discountStart: course.discountStart?.toISOString() ?? "",
+      discountEnd: course.discountEnd?.toISOString() ?? "",
+      previewDescription: course.previewDescription ?? "",
+      videoUrl: course.videoUrl ?? "",
+      allowPreview: course.allowPreview,
+      isPublished: course.isPublished,
+      enrollment: course.enrollment,
+      rating: course.rating ?? 0,
+      createdAt: course.createdAt.toISOString(),
+      updatedAt: course.updatedAt.toISOString(),
+    };
+
+    return NextResponse.json({ success: true, data: response });
+  } catch (error) {
+    console.error("课程创建失败:", error);
+    return NextResponse.json({ success: false, error: "课程创建失败" }, { status: 500 });
+  }
+}
+
+// ✅ 获取当前老师的课程列表（GET）
+export async function GET(req: NextRequest) {
+  try {
+    const user = await getUserFromToken(req);
+
+    if (!user || user.role !== "TEACHER") {
+      return NextResponse.json({ success: false, error: "无权限获取课程" }, { status: 401 });
+    }
+
+    const courses = await prisma.course.findMany({
+      where: { teacherId: user.id },
+      orderBy: { createdAt: "desc" },
+    });
+
+    return NextResponse.json({ success: true, courses });
+  } catch (error) {
+    console.error("获取课程失败:", error);
+    return NextResponse.json({ success: false, error: "课程获取失败" }, { status: 500 });
   }
 }

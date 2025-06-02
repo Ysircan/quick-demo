@@ -95,7 +95,7 @@ model Course {
   id                   String       @id @default(cuid())
   title                String
   description          String
-  coverImage           String
+  coverImage           String?
   tags                 String[]
   type                 CourseType
   category             String?
