@@ -1,19 +1,23 @@
-// src/app/api/public/courses/route.ts
-import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+// /app/api/public/courses/route.ts
 
-export async function GET() {
+import { NextRequest, NextResponse } from "next/server";
+import { PrismaClient } from "@prisma/client";
+
+const prisma = new PrismaClient();
+
+export async function GET(req: NextRequest) {
   try {
     const courses = await prisma.course.findMany({
-      where: { isPublished: true },
-      include: {
-        questions: true,
+      where: {
+        isPublished: true,
+        parentId: null,
       },
       orderBy: { createdAt: "desc" },
     });
 
     return NextResponse.json({ success: true, courses });
-  } catch (error) {
-    return NextResponse.json({ success: false, error: "无法获取课程" }, { status: 500 });
+  } catch (err) {
+    console.error("公开课程获取失败:", err);
+    return NextResponse.json({ success: false, error: "课程获取失败" }, { status: 500 });
   }
 }

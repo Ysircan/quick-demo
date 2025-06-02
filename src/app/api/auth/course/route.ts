@@ -4,7 +4,7 @@ import { getUserFromToken } from "@/lib/auth";
 
 const prisma = new PrismaClient();
 
-// ✅ 创建课程（支持主课程和子课程）
+// ✅ 创建课程（只允许主课程）
 export async function POST(req: NextRequest) {
   try {
     const user = await getUserFromToken(req);
@@ -30,7 +30,6 @@ export async function POST(req: NextRequest) {
       previewDescription,
       videoUrl,
       allowPreview = false,
-      parentId = null,
     } = body;
 
     if (!title || !description || !type || !difficulty || !durationDays) {
@@ -47,16 +46,16 @@ export async function POST(req: NextRequest) {
         difficulty,
         durationDays,
         coverImage: coverImage || undefined,
-        price: parseInt(price) || 0, // ✅ 加了 parseInt
-    originalPrice: originalPrice ? parseInt(originalPrice) : undefined, // ✅ 同理
-    discountPrice: discountPrice ? parseInt(discountPrice) : undefined,
+        price: parseInt(price) || 0,
+        originalPrice: originalPrice ? parseInt(originalPrice) : undefined,
+        discountPrice: discountPrice ? parseInt(discountPrice) : undefined,
         discountStart: discountStart ? new Date(discountStart) : undefined,
         discountEnd: discountEnd ? new Date(discountEnd) : undefined,
         previewDescription: previewDescription || undefined,
         videoUrl: videoUrl || undefined,
         allowPreview,
         teacherId: user.id,
-        parentId: parentId || null,
+        parentId: null, // 强制设置为主课程
       },
     });
 
@@ -67,7 +66,7 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// ✅ 获取课程（主课程 or 某主课程下的子课程）
+// ✅ 获取所有主课程（忽略子课程）
 export async function GET(req: NextRequest) {
   try {
     const user = await getUserFromToken(req);
@@ -75,36 +74,13 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ success: false, error: "无权限获取课程" }, { status: 401 });
     }
 
-    const url = new URL(req.url);
-    const parentId = url.searchParams.get("parentId");
-    const parentOnly = url.searchParams.get("parentOnly") === "true";
-
-    let courses = [];
-
-    if (parentId) {
-      // 🔹 获取指定主课程的子课程
-      courses = await prisma.course.findMany({
-        where: {
-          teacherId: user.id,
-          parentId,
-        },
-        orderBy: { createdAt: "asc" },
-      });
-    } else if (parentOnly) {
-      // 🔹 获取所有主课程
-      courses = await prisma.course.findMany({
-        where: {
-          teacherId: user.id,
-          parentId: null,
-        },
-        orderBy: { createdAt: "desc" },
-      });
-    } else {
-      return NextResponse.json({
-        success: false,
-        error: "缺少查询参数（请提供 ?parentOnly=true 或 ?parentId=xxx）",
-      }, { status: 400 });
-    }
+    const courses = await prisma.course.findMany({
+      where: {
+        teacherId: user.id,
+        parentId: null, // 只取主课程
+      },
+      orderBy: { createdAt: "desc" },
+    });
 
     return NextResponse.json({ success: true, courses });
   } catch (err) {

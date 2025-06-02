@@ -12,7 +12,7 @@ export default function CoursePage() {
     if (!token) return;
 
     try {
-      const res = await fetch("/api/auth/course?parentOnly=true", {
+      const res = await fetch("/api/auth/course", {
         headers: { Authorization: `Bearer ${token}` },
       });
 
@@ -20,27 +20,10 @@ export default function CoursePage() {
       if (res.ok && result.success) {
         setCourses(result.courses);
       } else {
-        console.warn("\u26A0\uFE0F 获取课程失败:", result.error);
+        console.warn("⚠️ 获取课程失败:", result.error);
       }
     } catch (err) {
-      console.error("\u274C 拉取课程失败:", err);
-    }
-  };
-
-  const fetchSubCourses = async (parentId: string) => {
-    const token = localStorage.getItem("token");
-    if (!token) return;
-
-    try {
-      const res = await fetch(`/api/auth/course?parentId=${parentId}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const result = await res.json();
-      if (res.ok && result.success) {
-        setCourses(prev => [...prev, ...result.courses]);
-      }
-    } catch (err) {
-      console.error("拉取子课程失败:", err);
+      console.error("❌ 拉取课程失败:", err);
     }
   };
 
@@ -90,30 +73,12 @@ export default function CoursePage() {
     }
   };
 
-  const publishedCourses = courses.filter(c => c.isPublished && c.parentId === null);
-  const draftCourses = courses.filter(c => !c.isPublished && c.parentId === null);
-  const getSubCourses = (parentId: string) => courses.filter(c => c.parentId === parentId);
-
-  const renderSubCourses = (parentId: string) => {
-    const subs = getSubCourses(parentId);
-    if (!subs.length) return null;
-    return (
-      <ul style={{ marginLeft: 16, paddingLeft: 12, borderLeft: "2px solid #ddd" }}>
-        {subs.map(sub => (
-          <li key={sub.id} style={{ marginTop: 6 }}>
-            <strong>📎 {sub.title}</strong>（{sub.difficulty}，{sub.durationDays}天）
-            <div>
-              <button onClick={() => router.push(`/teacher/dashboard/course/${sub.id}`)}>编辑</button>
-            </div>
-          </li>
-        ))}
-      </ul>
-    );
-  };
+  const publishedCourses = courses.filter(c => c.isPublished);
+  const draftCourses = courses.filter(c => !c.isPublished);
 
   const renderCourseCard = (course: any) => (
     <li key={course.id} style={{ border: "1px solid #ccc", padding: 16, marginBottom: 12, borderRadius: 8 }}>
-      <h2>{course.title} {getSubCourses(course.id).length > 0 && <span style={{ color: "#999", fontSize: 14 }}>（含子课程）</span>}</h2>
+      <h2>{course.title}</h2>
       <p>{course.description}</p>
       <p>状态：{course.isPublished ? "✅ 已发布" : "📝 草稿"}</p>
       <p>价格：¥{course.price ?? 0} | 报名人数：{course.enrollment ?? 0}</p>
@@ -124,7 +89,6 @@ export default function CoursePage() {
           : <button onClick={() => handlePublish(course)}>📢 发布</button>}
         <button onClick={() => handleDelete(course.id)}>🗑 删除</button>
       </div>
-      {renderSubCourses(course.id)}
     </li>
   );
 
