@@ -5,115 +5,82 @@ import { useRouter } from "next/navigation";
 
 export default function CreateCoursePage() {
   const router = useRouter();
-  const [formData, setFormData] = useState({
+  const [form, setForm] = useState({
     title: "",
     description: "",
     type: "MAIN",
+    category: "",
     difficulty: "EASY",
-    durationDays: 30,
+    durationDays: 7,
+    price: 0,
+    parentId: "",
   });
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
 
-  const handleChange = (
-    e: React.ChangeEvent<
-      HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
-    >
-  ) => {
+  const [loading, setLoading] = useState(false);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: name === "durationDays" ? Number(value) : value,
-    }));
+    setForm((prev) => ({ ...prev, [name]: value }));
   };
 
   const handleSubmit = async () => {
     setLoading(true);
-    setError("");
+    const token = localStorage.getItem("token");
+    const res = await fetch("/api/auth/course", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(form),
+    });
 
-    try {
-      const res = await fetch("/api/auth/course", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("token")}`,
-        },
-        body: JSON.stringify(formData),
-      });
+    const result = await res.json();
+    setLoading(false);
 
-      const result = await res.json();
-
-      if (res.ok && result.success && result.data?.id) {
-        alert("课程创建成功，ID: " + result.data.id);
-        router.push("/teacher/dashboard/course");
-      } else {
-        setError(result.error || "课程创建失败");
-      }
-    } catch (err) {
-      setError("网络错误或服务器异常");
-    } finally {
-      setLoading(false);
+    if (result.success) {
+      alert("✅ 课程创建成功！");
+      router.push("/teacher/dashboard/course");
+    } else {
+      alert(`❌ 创建失败：${result.error}`);
     }
   };
 
   return (
-    <div className="max-w-xl mx-auto py-12 px-4">
-      <h1 className="text-2xl font-bold mb-6">📝 创建新课程</h1>
+    <div style={{ maxWidth: 600, margin: "0 auto", padding: 24 }}>
+      <h1>🎓 创建新课程</h1>
+      <label>课程标题</label>
+      <input name="title" value={form.title} onChange={handleChange} style={{ width: "100%" }} />
 
-      <div className="space-y-4">
-        <input
-          name="title"
-          placeholder="课程标题"
-          value={formData.title}
-          onChange={handleChange}
-          className="w-full p-2 border rounded"
-        />
-        <textarea
-          name="description"
-          placeholder="课程简介"
-          value={formData.description}
-          onChange={handleChange}
-          className="w-full p-2 border rounded"
-        />
-        <select
-          name="type"
-          value={formData.type}
-          onChange={handleChange}
-          className="w-full p-2 border rounded"
-        >
-          <option value="MAIN">主课程</option>
-          <option value="PRACTICE">练习课</option>
-          <option value="EXAM">考试课</option>
-        </select>
-        <select
-          name="difficulty"
-          value={formData.difficulty}
-          onChange={handleChange}
-          className="w-full p-2 border rounded"
-        >
-          <option value="EASY">简单</option>
-          <option value="MEDIUM">中等</option>
-          <option value="HARD">困难</option>
-        </select>
-        <input
-          name="durationDays"
-          type="number"
-          min={1}
-          value={formData.durationDays}
-          onChange={handleChange}
-          className="w-full p-2 border rounded"
-        />
+      <label>课程描述</label>
+      <textarea name="description" value={form.description} onChange={handleChange} rows={3} style={{ width: "100%" }} />
 
-        {error && <p className="text-red-500 text-sm">{error}</p>}
+      <label>类型</label>
+      <select name="type" value={form.type} onChange={handleChange} style={{ width: "100%" }}>
+        <option value="MAIN">主课程</option>
+        <option value="PRACTICE">练习课</option>
+        <option value="EXAM">考试课</option>
+      </select>
 
-        <button
-          onClick={handleSubmit}
-          disabled={loading}
-          className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
-        >
-          {loading ? "创建中..." : "创建课程"}
-        </button>
-      </div>
+      <label>难度</label>
+      <select name="difficulty" value={form.difficulty} onChange={handleChange} style={{ width: "100%" }}>
+        <option value="EASY">简单</option>
+        <option value="MEDIUM">中等</option>
+        <option value="HARD">困难</option>
+      </select>
+
+      <label>天数</label>
+      <input name="durationDays" type="number" value={form.durationDays} onChange={handleChange} style={{ width: "100%" }} />
+
+      <label>价格（¥）</label>
+      <input name="price" type="number" value={form.price} onChange={handleChange} style={{ width: "100%" }} />
+
+      <label>父课程ID（可选）</label>
+      <input name="parentId" value={form.parentId} onChange={handleChange} style={{ width: "100%" }} />
+
+      <button onClick={handleSubmit} disabled={loading} style={{ marginTop: 16 }}>
+        {loading ? "创建中..." : "🚀 创建课程"}
+      </button>
     </div>
   );
 }

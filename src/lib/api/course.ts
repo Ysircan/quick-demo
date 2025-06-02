@@ -18,6 +18,7 @@ export interface CreateCourseRequest {
   previewDescription?: string
   videoUrl?: string
   allowPreview?: boolean
+  parentId?: string; // ✅ 加上这行！
 }
 
 // ========================
