@@ -192,7 +192,7 @@ export default function EditCoursePage() {
       )}
 
       <button
-        onClick={() => router.push(`/teacher/dashboard/course/${id}/edit/${q.id}`)}
+        onClick={() => router.push(`/teacher/dashboard/question/${q.id}/edit`)}
         style={{
           marginTop: 12,
           padding: "6px 12px",
@@ -205,6 +205,41 @@ export default function EditCoursePage() {
       >
         ✏️ 编辑
       </button>
+      <button
+  onClick={async () => {
+    const confirmed = confirm("确定要删除这道题吗？此操作不可撤销。");
+    if (!confirmed) return;
+
+    const token = localStorage.getItem("token");
+    const res = await fetch(`/api/auth/question/${q.id}`, {
+      method: "DELETE",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    const result = await res.json();
+    if (res.ok && result.success) {
+      // ✅ 删除成功后刷新题目列表
+      setQuestions((prev) => prev.filter((item) => item.id !== q.id));
+    } else {
+      alert("删除失败：" + result.error);
+    }
+  }}
+  style={{
+    marginTop: 8,
+    marginLeft: 12,
+    padding: "6px 12px",
+    backgroundColor: "#700",
+    color: "white",
+    border: "1px solid #933",
+    borderRadius: 4,
+    cursor: "pointer",
+  }}
+>
+  🗑️ 删除
+</button>
+
     </div>
   ))
 )}
