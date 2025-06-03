@@ -40,7 +40,8 @@ export default function CreateCoursePage() {
 
     if (result.success) {
       alert("✅ 课程创建成功！");
-      router.push("/teacher/dashboard/course");
+      const courseId = result.data.id;
+      router.push(`/teacher/dashboard/course/${courseId}/generate`);
     } else {
       alert(`❌ 创建失败：${result.error}`);
     }

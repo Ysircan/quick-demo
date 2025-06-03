@@ -133,4 +133,4 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
     console.error("删除课程失败:", error);
     return NextResponse.json({ success: false, error: "删除失败" }, { status: 500 });
   }
-}
+}  

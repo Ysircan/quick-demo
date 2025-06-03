@@ -1,302 +1,233 @@
 'use client';
 
 import { useState } from 'react';
-import {
-  Question,
-  QuestionStructure,
-  PromptParams,
-  QuestionType,
-} from './type';
-import { generatePrompt } from './promptmethod';
+import { useRouter } from 'next/navigation'; // ✅ 添加 router
 
-const QUESTION_TYPES: { label: string; value: QuestionType }[] = [
+type QuestionType = 'choice' | 'short' | 'cloze';
+interface QuestionStructure { type: QuestionType; count: number }
+interface AIQuestion {
+  type: QuestionType;
+  content: string;
+  options?: string[];
+  answer: string;
+  explanation?: string;
+  selected?: boolean;
+}
+
+interface AIQuestionGeneratorProps {
+  courseId: string;
+}
+
+const QUESTION_TYPES = [
   { label: '选择题', value: 'choice' },
   { label: '简答题', value: 'short' },
   { label: '填空题', value: 'cloze' },
 ];
 
-const TYPE_MAP: Record<QuestionType, string> = {
-  choice: '选择题',
-  short: '简答题',
-  cloze: '填空题',
-};
-
 const STYLES = ['高考', '中考', '法考', 'PTE', '雅思'];
 
-export default function AIQuestionGenerator() {
-  const [title, setTitle] = useState('');
+export default function AIQuestionGenerator({ courseId }: AIQuestionGeneratorProps) {
   const [topic, setTopic] = useState('');
   const [style, setStyle] = useState('');
   const [structure, setStructure] = useState<QuestionStructure[]>([]);
-  const [questions, setQuestions] = useState<(Question & { selected?: boolean })[]>([]);
+  const [questions, setQuestions] = useState<AIQuestion[]>([]);
   const [loading, setLoading] = useState(false);
-
   const [selectedType, setSelectedType] = useState<QuestionType>('choice');
   const [count, setCount] = useState<number>(1);
+  const router = useRouter(); // ✅ 初始化 router
 
-  const addStructure = (type: QuestionType, count: number) => {
+  const addStructure = () => {
     if (count < 1) return;
-    setStructure((prev) => [...prev, { type, count }]);
+    setStructure((prev) => [...prev, { type: selectedType, count }]);
   };
 
   const removeStructure = (index: number) => {
     setStructure((prev) => prev.filter((_, i) => i !== index));
   };
 
-  const toggleSelect = (index: number) => {
-    setQuestions((prev) =>
-      prev.map((q, i) => (i === index ? { ...q, selected: !q.selected } : q))
-    );
-  };
-
-  const removeQuestion = (index: number) => {
-    setQuestions((prev) => prev.filter((_, i) => i !== index));
-  };
-
   const handleGenerate = async () => {
-    if (!topic || structure.length === 0) {
-      return alert('请输入主题并至少添加一个题型数量');
-    }
-
-    const titleInput = window.prompt('请输入本次作业的标题', '未命名作业');
-    if (!titleInput) return;
-    setTitle(titleInput);
-
-    const params: PromptParams = { topic, structure, style };
-    const prompt = generatePrompt(params);
+    if (!topic || structure.length === 0) return alert('请填写主题和题型结构');
 
     setLoading(true);
     try {
-      const res = await fetch('/api/ai/generateWithPrompt', {
+      const res = await fetch('/api/ai/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt }),
+        body: JSON.stringify({ topic, structure, style }),
       });
 
       const data = await res.json();
-      let result = Array.isArray(data) ? data : data.result;
-
-      if (typeof result === 'string') {
-        try {
-          result = JSON.parse(result);
-        } catch (e) {
-          console.error('解析失败', result);
-        }
-      }
-
-      if (Array.isArray(result)) {
-        setQuestions(result.map((q) => ({ ...q, selected: false })));
+      if (data?.questions?.length) {
+        setQuestions(data.questions.map((q: AIQuestion) => ({ ...q, selected: false })));
       } else {
-        alert('返回格式无法识别');
+        alert('题目生成失败，请检查结构');
       }
     } catch (err) {
       console.error(err);
-      alert('生成失败');
+      alert('接口错误');
     } finally {
       setLoading(false);
     }
   };
 
-const handleSave = async () => {
-  const selected = questions.filter((q) => q.selected);
-  if (!selected.length) return alert("请至少选择一道题目进行保存");
+  const toggleSelect = (i: number) => {
+    setQuestions((prev) =>
+      prev.map((q, idx) => (idx === i ? { ...q, selected: !q.selected } : q))
+    );
+  };
 
-  // ✅ 转换成后端需要的格式
-  const formattedQuestions = selected.map((q) => ({
-    type: q.options && q.options.length ? "choice" : "short", // 根据有无选项判断题型
-    content: q.question, // 原字段 question → 映射为 content
-    options: q.options?.length ? q.options : undefined, // 仅当有选项时才传
-    answer: q.answer,
-  }));
+  const removeQuestion = (i: number) => {
+    setQuestions((prev) => prev.filter((_, idx) => idx !== i));
+  };
 
-  const token = localStorage.getItem("token");
-  if (!token) return alert("请先登录");
+  const handleSave = async () => {
+    const selected = questions.filter((q) => q.selected);
+    if (!selected.length) return alert('请至少选择一道题');
 
-  try {
-    const res = await fetch("/api/auth/course", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({
-        title,
-        description: topic || "AI 自动出题课程",
-        coverImage: "/cover/default.jpg",
-        tags: [style || "AI课程"],
-        type: "word",
-        difficulty: "medium",
-        durationDays: 7,
-        price: 0,
-        structure,
-        questions: formattedQuestions, // ✅ 正确结构
-      }),
-    });
+    const token = localStorage.getItem('token');
+    if (!token) return alert('请先登录');
 
-    if (res.ok) {
-      alert("✅ 已保存至课程列表！");
-    } else {
-      const errorText = await res.text();
-      console.error("❌ 后端响应错误：", errorText);
-      alert("❌ 保存失败，请检查后端接口或数据结构！");
+    try {
+      const res = await fetch('/api/auth/question/batch', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ courseId, questions: selected }),
+      });
+
+      if (res.ok) {
+        alert('✅ 题目保存成功，正在返回课程页...');
+        router.push(`/teacher/dashboard/course/${courseId}`); // ✅ 自动跳转
+      } else {
+        alert('❌ 保存失败，请检查后端或课程ID');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('❌ 系统错误');
     }
-  } catch (err) {
-    console.error("❌ 网络或系统错误：", err);
-    alert("❌ 网络错误或服务器异常！");
-  }
-};
-
-
-
+  };
 
   return (
-    <div className="flex flex-col md:flex-row bg-white text-black p-6 rounded shadow max-w-6xl mx-auto space-y-6 md:space-y-0 md:space-x-6">
-      <div className="flex-1 space-y-4">
-        <h2 className="text-xl font-bold">AI 出题生成器</h2>
+    <div className="p-6 max-w-4xl mx-auto space-y-6 bg-gray-900 text-white rounded-lg shadow">
+      <h2 className="text-xl font-bold">AI 出题生成器</h2>
+
+      <input
+        className="w-full border border-gray-600 bg-gray-800 p-2 rounded text-white"
+        placeholder="请输入出题主题"
+        value={topic}
+        onChange={(e) => setTopic(e.target.value)}
+      />
+
+      <div className="flex space-x-2">
+        <select
+          value={selectedType}
+          onChange={(e) => setSelectedType(e.target.value as QuestionType)}
+          className="border border-gray-600 bg-gray-800 text-white p-2 rounded"
+        >
+          {QUESTION_TYPES.map((t) => (
+            <option key={t.value} value={t.value}>{t.label}</option>
+          ))}
+        </select>
 
         <input
-          type="text"
-          className="w-full p-3 border border-gray-300 rounded"
-          placeholder="请输入出题主题，如：光合作用"
-          value={topic}
-          onChange={(e) => setTopic(e.target.value)}
+          type="number"
+          min={1}
+          value={count}
+          onChange={(e) => setCount(Number(e.target.value))}
+          className="w-20 border border-gray-600 bg-gray-800 text-white p-2 rounded"
         />
 
-        <div className="flex items-center space-x-2">
-          <select
-            value={selectedType}
-            onChange={(e) => setSelectedType(e.target.value as QuestionType)}
-            className="border p-2 rounded"
-          >
-            {QUESTION_TYPES.map((qt) => (
-              <option key={qt.value} value={qt.value}>
-                {qt.label}
-              </option>
-            ))}
-          </select>
-
-          <input
-            type="number"
-            min={1}
-            value={count}
-            onChange={(e) => setCount(Number(e.target.value))}
-            className="w-20 p-2 border rounded"
-          />
-
-          <button
-            onClick={() => addStructure(selectedType, count)}
-            className="bg-blue-100 px-4 py-1 rounded hover:bg-blue-200"
-          >
-            + 添加结构
-          </button>
-        </div>
-
-        <div>
-          <label className="block mt-2 font-medium">选择出题风格：</label>
-          <select
-            className="w-full p-2 border border-gray-300 rounded"
-            value={style}
-            onChange={(e) => setStyle(e.target.value)}
-          >
-            <option value="">-- 可选 --</option>
-            {STYLES.map((s) => (
-              <option key={s} value={s}>{s}</option>
-            ))}
-          </select>
-        </div>
-
-        {structure.length > 0 && (
-          <div className="text-sm text-gray-700 space-y-2">
-            <p>当前结构：</p>
-            {structure.map((s, i) => (
-              <div key={i} className="flex items-center space-x-2">
-                <span>{s.count} 道 {TYPE_MAP[s.type]}</span>
-                <button
-                  className="text-red-500 text-xs"
-                  onClick={() => removeStructure(i)}
-                >
-                  删除
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
-
         <button
-          onClick={handleGenerate}
-          disabled={loading}
-          className="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700 transition"
+          onClick={addStructure}
+          className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
         >
-          {loading ? '生成中...' : '生成题目'}
+          + 添加结构
         </button>
       </div>
 
-      {/* 右侧：题目预览区 */}
-      <div className="flex-1 max-h-[80vh] overflow-y-auto bg-gray-50 p-4 rounded shadow-inner">
-        {questions.length > 0 ? (
-          <div className="grid grid-cols-1 gap-4">
-            {questions.map((q, i) => (
-              <div
-                key={i}
-                className="relative border border-gray-300 rounded-lg p-4 bg-white shadow-sm"
-              >
-                <p className="font-semibold text-lg text-gray-800">
-                  {i + 1}. {q.question}
-                </p>
+      <div className="space-y-1 text-sm">
+        {structure.map((s, i) => (
+          <div key={i} className="flex justify-between text-gray-300">
+            <span>{s.count} 道 {QUESTION_TYPES.find((t) => t.value === s.type)?.label}</span>
+            <button onClick={() => removeStructure(i)} className="text-red-400 hover:text-red-600 text-xs">
+              删除
+            </button>
+          </div>
+        ))}
+      </div>
 
-                {Array.isArray(q.options) && q.options.length > 0 ? (
-                  <ul className="mt-3 space-y-2">
-                    {q.options.map((opt, idx) => (
-                      <li
-                        key={idx}
-                        className={`px-3 py-2 border rounded ${
-                          opt === q.answer
-                            ? 'border-green-500 bg-green-50 text-green-700 font-medium'
-                            : 'border-gray-300 bg-white'
-                        }`}
-                      >
-                        {String.fromCharCode(65 + idx)}. {opt}
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p className="mt-3 text-blue-700">
-                    ✅ <span className="font-medium">参考答案：</span> {q.answer}
-                  </p>
-                )}
+      <select
+        value={style}
+        onChange={(e) => setStyle(e.target.value)}
+        className="w-full border border-gray-600 bg-gray-800 text-white p-2 rounded"
+      >
+        <option value="">-- 选择风格（可选） --</option>
+        {STYLES.map((s) => (
+          <option key={s} value={s}>{s}</option>
+        ))}
+      </select>
 
-                {/* ✅ 保存单题 */}
-                <button
-                  className={`absolute top-2 right-20 text-xs ${q.selected ? 'text-green-600' : 'text-blue-500'} hover:underline`}
-                  onClick={() => toggleSelect(i)}
-                >
-                  {q.selected ? '✅ 已选择' : '💾 保存该题'}
-                </button>
+      <button
+        onClick={handleGenerate}
+        disabled={loading}
+        className="w-full bg-green-600 hover:bg-green-700 text-white py-2 rounded"
+      >
+        {loading ? '生成中...' : '生成题目'}
+      </button>
 
-                {/* 删除 */}
-                <button
-                  className="absolute top-2 right-2 text-xs text-red-500 hover:underline"
-                  onClick={() => removeQuestion(i)}
-                >
-                  删除题目
-                </button>
-              </div>
-            ))}
+      {questions.length > 0 && (
+        <div className="space-y-4">
+          {questions.map((q, i) => (
+            <div key={i} className="border border-gray-600 rounded p-4 bg-gray-800 relative">
+              <p className="font-semibold text-gray-100">{i + 1}. {q.content}</p>
 
-            {/* 保存按钮 */}
-            <div className="w-full mt-4 text-center">
+              {q.options ? (
+                <ul className="mt-2 space-y-1 text-sm text-gray-200">
+                  {q.options.map((opt, idx) => (
+                    <li
+                      key={idx}
+                      className={`px-3 py-1 border rounded ${opt === q.answer
+                        ? 'border-green-400 bg-green-700 text-white font-medium'
+                        : 'border-gray-600'}`}
+                    >
+                      {String.fromCharCode(65 + idx)}. {opt}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-blue-300 mt-2 text-sm">答案：{q.answer}</p>
+              )}
+
               <button
-                onClick={handleSave}
-                className="bg-green-600 hover:bg-green-700 px-6 py-2 rounded text-white"
+                className={`absolute top-2 right-24 px-2 py-1 text-xs rounded ${q.selected
+                  ? 'bg-green-600 text-white'
+                  : 'bg-blue-500 text-white hover:bg-blue-600'}`}
+                onClick={() => toggleSelect(i)}
               >
-                📦 保存选中题目为课程
+                {q.selected ? '✅ 已选择' : '💾 保存该题'}
+              </button>
+
+              <button
+                onClick={() => removeQuestion(i)}
+                className="absolute top-2 right-4 text-xs text-red-400 hover:text-red-600"
+              >
+                删除
               </button>
             </div>
+          ))}
+
+          <div className="text-center mt-4">
+            <button
+              onClick={handleSave}
+              className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-2 rounded"
+            >
+              📦 保存选中题目
+            </button>
           </div>
-        ) : (
-          <p className="text-gray-400 text-center">暂无生成内容，请先输入主题并生成题目。</p>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }
