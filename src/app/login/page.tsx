@@ -35,7 +35,7 @@ export default function LoginPage() {
       if (data.user.role === "TEACHER") {
         router.push("/teacher/dashboard");
       } else {
-        router.push("/student/dashboard");
+        router.push("/store");
       }
     }
   };

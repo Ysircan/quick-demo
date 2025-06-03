@@ -1,4 +1,4 @@
-// /app/api/public/courses/route.ts
+// /app/api/auth/public/courses/route.ts
 
 import { NextRequest, NextResponse } from "next/server";
 import { PrismaClient } from "@prisma/client";
