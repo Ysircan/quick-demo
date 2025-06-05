@@ -77,7 +77,7 @@ export default function StudentLibraryPage() {
               <p className="text-sm text-gray-400">{course.description}</p>
               <p className="text-sm text-gray-500">进度：{course.progress}%</p>
               <button
-                onClick={() => router.push(`/student/task/${course.courseId}`)}
+                onClick={() => router.push(`/student/store/library/${course.courseId}/unpack`)}
                 className="mt-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-sm rounded"
               >
                 进入学习
